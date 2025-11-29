@@ -22,7 +22,7 @@ const User = sequelize.define(
   {
     tableName: "usuarios",
     timestamps: true,
-    createdAt: "fecha_registro",
+    createdAt: "created_at",
     updatedAt: "updated_at",
   }
 );
