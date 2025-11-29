@@ -192,3 +192,33 @@ exports.remove = async (req, res) => {
     return res.status(500).json({ msg: "Error interno" });
   }
 };
+
+// ============================================
+//  Actualizar perfil del usuario autenticado
+// ============================================
+exports.updateProfile = async (req, res) => {
+  try {
+    const userId = req.user && req.user.id;
+    if (!userId) return res.status(401).json({ msg: "No autorizado" });
+
+    const { nombre, apellido, telefono, direccion, descripcion, foto_url } =
+      req.body;
+
+    // Validar datos obligatorios si quieres
+    if (!nombre) {
+      return res.status(400).json({ msg: "El nombre es requerido" });
+    }
+
+    await db.query(
+      `UPDATE usuarios 
+       SET nombre = ?, apellido = ?, telefono = ?, direccion = ?, descripcion = ?, foto_url = ?
+       WHERE id = ?`,
+      [nombre, apellido, telefono, direccion, descripcion, foto_url, userId]
+    );
+
+    return res.json({ msg: "Perfil actualizado correctamente" });
+  } catch (error) {
+    console.error("Error updateProfile:", error);
+    return res.status(500).json({ msg: "Error interno" });
+  }
+};

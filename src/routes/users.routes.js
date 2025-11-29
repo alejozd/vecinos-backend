@@ -12,6 +12,9 @@ router.put("/location", auth, usersCtrl.updateLocation);
 // RUTA PROTEGIDA: Perfil del usuario autenticado
 router.get("/me", auth, usersCtrl.getProfile);
 
+// RUTA PROTEGIDA: Actualizar el perfil del usuario autenticado
+router.put("/me", auth, usersCtrl.updateProfile);
+
 // CRUD de usuarios
 router.get("/", auth, usersCtrl.getAll);
 router.get("/:id", auth, usersCtrl.getById);
