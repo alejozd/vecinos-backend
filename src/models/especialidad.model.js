@@ -1,6 +1,6 @@
 // src/models/especialidad.model.js
 const { DataTypes } = require("sequelize");
-const sequelize = require("../config/database");
+const { sequelize } = require("../config/database");
 
 const Especialidad = sequelize.define(
   "Especialidad",

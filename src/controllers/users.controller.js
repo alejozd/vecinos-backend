@@ -1,32 +1,94 @@
 // src/controllers/users.controller.js
-const { sequelize } = require("../models");
+const db = require("../config/database");
 
+// ============================================
+//  Buscar usuarios cercanos
+// ============================================
 exports.findNearby = async (req, res) => {
   try {
-    const lat = parseFloat(req.query.lat);
-    const lng = parseFloat(req.query.lng);
-    const radius = parseInt(req.query.radius) || 1000; // metros
+    const { lat, lng, max = 1 } = req.query;
 
-    if (isNaN(lat) || isNaN(lng))
-      return res.status(400).json({ msg: "Faltan coords" });
+    if (!lat || !lng) {
+      return res.status(400).json({ msg: "Lat y Lng requeridos" });
+    }
 
-    const sql = `
-      SELECT id, nombre, email, lat, lng,
-        ST_Distance_Sphere(POINT(lng, lat), POINT(:lng, :lat)) AS distance_m
+    // MySQL: usamos placeholders "?"
+    const rows = await db.query(
+      `
+      SELECT 
+        id,
+        nombre,
+        email,
+        lat,
+        lng,
+        (
+          6371000 * acos(
+            cos(radians(?)) * cos(radians(lat)) *
+            cos(radians(lng) - radians(?)) +
+            sin(radians(?)) * sin(radians(lat))
+          )
+        ) AS distance_m
       FROM usuarios
-      WHERE activo = 1
-      HAVING distance_m <= :radius
+      HAVING distance_m <= (? * 1000)
       ORDER BY distance_m ASC
-      LIMIT 100;
-    `;
+      LIMIT 100
+      `,
+      [lat, lng, lat, max]
+    );
 
-    const [results] = await sequelize.query(sql, {
-      replacements: { lat, lng, lng: lng, radius },
-    });
+    return res.json(rows);
+  } catch (error) {
+    console.error("Error findNearby:", error);
+    return res.status(500).json({ msg: "Error interno" });
+  }
+};
 
-    return res.json(results);
-  } catch (err) {
-    console.error(err);
+// ============================================
+//  Actualizar ubicación del usuario
+// ============================================
+exports.updateLocation = async (req, res) => {
+  try {
+    const userId = req.user && req.user.id;
+    const { lat, lng } = req.body;
+
+    if (!userId) return res.status(401).json({ msg: "No autorizado" });
+    if (!lat || !lng) {
+      return res.status(400).json({ msg: "Lat y Lng requeridos" });
+    }
+
+    await db.query(`UPDATE usuarios SET lat = ?, lng = ? WHERE id = ?`, [
+      lat,
+      lng,
+      userId,
+    ]);
+
+    return res.json({ msg: "Ubicación actualizada" });
+  } catch (error) {
+    console.error("Error updateLocation:", error);
+    return res.status(500).json({ msg: "Error interno" });
+  }
+};
+
+// ============================================
+//  Obtener perfil del usuario autenticado
+// ============================================
+exports.getProfile = async (req, res) => {
+  try {
+    const userId = req.user && req.user.id;
+    if (!userId) return res.status(401).json({ msg: "No autorizado" });
+
+    const rows = await db.query(
+      `SELECT id, nombre, email, lat, lng FROM usuarios WHERE id = ?`,
+      [userId]
+    );
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ msg: "Usuario no encontrado" });
+    }
+
+    return res.json(rows[0]);
+  } catch (error) {
+    console.error("Error getProfile:", error);
     return res.status(500).json({ msg: "Error interno" });
   }
 };
