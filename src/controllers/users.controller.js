@@ -4,39 +4,110 @@ const db = require("../config/database");
 // ============================================
 //  Buscar usuarios cercanos
 // ============================================
+// ============================================
+//  Buscar usuarios cercanos (con especialidades)
+// ============================================
 exports.findNearby = async (req, res) => {
   try {
-    const { lat, lng, max = 1 } = req.query;
+    const { lat, lng, max = 10, especialidad } = req.query;
 
     if (!lat || !lng) {
       return res.status(400).json({ msg: "Lat y Lng requeridos" });
     }
 
-    // MySQL: usamos placeholders "?"
-    const rows = await db.query(
-      `
+    // Convertir max de km a metros
+    const maxDistanceMeters = (parseFloat(max) || 10) * 1000;
+
+    // Base de la consulta
+    let sql = `
       SELECT 
-        id,
-        nombre,
-        email,
-        lat,
-        lng,
+        u.id,
+        u.nombre,
+        u.email,
+        u.lat,
+        u.lng,
+        u.foto_url,
+        u.descripcion,
         (
           6371000 * acos(
-            cos(radians(?)) * cos(radians(lat)) *
-            cos(radians(lng) - radians(?)) +
-            sin(radians(?)) * sin(radians(lat))
+            cos(radians(?)) * cos(radians(u.lat)) *
+            cos(radians(u.lng) - radians(?)) +
+            sin(radians(?)) * sin(radians(u.lat))
           )
         ) AS distance_m
-      FROM usuarios
-      HAVING distance_m <= (? * 1000)
+      FROM usuarios u
+      WHERE u.activo = 1
+        AND u.lat IS NOT NULL 
+        AND u.lng IS NOT NULL
+    `;
+
+    // Parámetros base
+    const params = [lat, lng, lat];
+
+    // FILTRO POR ESPECIALIDAD (opcional)
+    if (especialidad && especialidad.trim() !== "") {
+      sql += `
+        INNER JOIN usuario_especialidad ue ON u.id = ue.usuario_id
+        INNER JOIN especialidades e ON ue.especialidad_id = e.id
+        WHERE e.nombre LIKE ?
+      `;
+      params.push(`%${especialidad}%`);
+    }
+
+    // Distancia y orden
+    sql += `
+      HAVING distance_m <= ?
       ORDER BY distance_m ASC
       LIMIT 100
-      `,
-      [lat, lng, lat, max]
-    );
+    `;
+    params.push(maxDistanceMeters);
 
-    return res.json(rows);
+    // Ejecutar consulta principal
+    const rows = await db.query(sql, params);
+
+    // Si no hay resultados
+    if (!rows || rows.length === 0) {
+      return res.json([]);
+    }
+
+    // Obtener especialidades de todos los usuarios encontrados
+    const userIds = rows.map((row) => row.id);
+    const placeholders = userIds.map(() => "?").join(",");
+
+    const especialidadesQuery = `
+      SELECT 
+        ue.usuario_id,
+        e.nombre AS especialidad,
+        ue.experiencia,
+        ue.descripcion AS descripcion_especialidad
+      FROM usuario_especialidad ue
+      JOIN especialidades e ON ue.especialidad_id = e.id
+      WHERE ue.usuario_id IN (${placeholders})
+    `;
+
+    const especialidadesRows = await db.query(especialidadesQuery, userIds);
+
+    // Agrupar especialidades por usuario
+    const especialidadesMap = {};
+    especialidadesRows.forEach((row) => {
+      if (!especialidadesMap[row.usuario_id]) {
+        especialidadesMap[row.usuario_id] = [];
+      }
+      especialidadesMap[row.usuario_id].push({
+        especialidad: row.especialidad,
+        experiencia: row.experiencia,
+        descripcion: row.descripcion_especialidad,
+      });
+    });
+
+    // Combinar datos del usuario + sus especialidades
+    const result = rows.map((user) => ({
+      ...user,
+      distance_m: parseFloat(user.distance_m.toFixed(2)),
+      especialidades: especialidadesMap[user.id] || [],
+    }));
+
+    return res.json(result);
   } catch (error) {
     console.error("Error findNearby:", error);
     return res.status(500).json({ msg: "Error interno" });
