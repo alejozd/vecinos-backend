@@ -11,6 +11,15 @@ exports.findNearby = async (req, res) => {
   try {
     const { lat, lng, max = 10, especialidad } = req.query;
 
+    // === LOGS DE DEPURACIÓN ===
+    console.log("=== BUSQUEDA VECINOS ===");
+    console.log("lat:", lat);
+    console.log("lng:", lng);
+    console.log("max:", max);
+    console.log("especialidad recibida:", especialidad); // ← aquí veremos si llega el texto
+    console.log("especialidad.trim():", especialidad?.trim());
+    // ===========================
+
     if (!lat || !lng) {
       return res.status(400).json({ msg: "Lat y Lng requeridos" });
     }
@@ -70,6 +79,13 @@ exports.findNearby = async (req, res) => {
       LIMIT 100
     `;
     params.push(maxDistanceMeters);
+
+    // === LOG FINAL IMPORTANTÍSIMO ===
+    console.log("SQL generada:");
+    console.log(sql);
+    console.log("Parámetros:", params);
+    console.log("=================================\n");
+    // ===================================
 
     // Ejecutar consulta principal
     const rows = await db.query(sql, params);
