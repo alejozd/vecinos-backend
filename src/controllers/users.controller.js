@@ -44,21 +44,26 @@ exports.findNearby = async (req, res) => {
     // Añadir JOINs si hay filtro de especialidad
     if (especialidad && especialidad.trim() !== "") {
       sql += `
-    INNER JOIN usuario_especialidad ue ON u.id = ue.usuario_id
-    INNER JOIN especialidades e ON ue.especialidad_id = e.id
-      AND LOWER(e.nombre) LIKE LOWER(?)
-    `;
-      params.push(`%${especialidad.trim()}%`);
+        INNER JOIN usuario_especialidad ue ON ue.usuario_id = u.id
+        INNER JOIN especialidades e ON e.id = ue.especialidad_id
+      `;
+      // El filtro va en el WHERE
     }
 
-    // Ahora sí el WHERE principal
+    // WHERE principal
     sql += `
-    WHERE u.activo = 1
-    AND u.lat IS NOT NULL 
-    AND u.lng IS NOT NULL
+      WHERE u.activo = 1
+        AND u.lat IS NOT NULL 
+        AND u.lng IS NOT NULL
     `;
 
-    // HAVING para distancia + ORDER + LIMIT
+    // Añadir filtro de especialidad al WHERE (aquí sí es correcto)
+    if (especialidad && especialidad.trim() !== "") {
+      sql += ` AND LOWER(e.nombre) LIKE ?`;
+      params.push(`%${especialidad.trim().toLowerCase()}%`);
+    }
+
+    // HAVING + ORDER + LIMIT
     sql += `
       HAVING distance_m <= ?
       ORDER BY distance_m ASC
