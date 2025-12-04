@@ -35,26 +35,30 @@ exports.findNearby = async (req, res) => {
             sin(radians(?)) * sin(radians(u.lat))
           )
         ) AS distance_m
-      FROM usuarios u
-      WHERE u.activo = 1
-        AND u.lat IS NOT NULL 
-        AND u.lng IS NOT NULL
+      FROM usuarios u      
     `;
 
     // Parámetros base
     const params = [lat, lng, lat];
 
-    // FILTRO POR ESPECIALIDAD (opcional)
+    // Añadir JOINs si hay filtro de especialidad
     if (especialidad && especialidad.trim() !== "") {
       sql += `
-        INNER JOIN usuario_especialidad ue ON u.id = ue.usuario_id
-        INNER JOIN especialidades e ON ue.especialidad_id = e.id
-        WHERE e.nombre LIKE ?
-      `;
-      params.push(`%${especialidad}%`);
+    INNER JOIN usuario_especialidad ue ON u.id = ue.usuario_id
+    INNER JOIN especialidades e ON ue.especialidad_id = e.id
+      AND LOWER(e.nombre) LIKE LOWER(?)
+    `;
+      params.push(`%${especialidad.trim()}%`);
     }
 
-    // Distancia y orden
+    // Ahora sí el WHERE principal
+    sql += `
+    WHERE u.activo = 1
+    AND u.lat IS NOT NULL 
+    AND u.lng IS NOT NULL
+    `;
+
+    // HAVING para distancia + ORDER + LIMIT
     sql += `
       HAVING distance_m <= ?
       ORDER BY distance_m ASC
