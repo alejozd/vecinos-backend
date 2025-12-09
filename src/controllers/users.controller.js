@@ -277,28 +277,91 @@ exports.remove = async (req, res) => {
 //  Actualizar perfil del usuario autenticado
 // ============================================
 exports.updateProfile = async (req, res) => {
+  const t = await db.sequelize.transaction();
+
   try {
-    const userId = req.user && req.user.id;
+    const userId = req.user.id;
     if (!userId) return res.status(401).json({ msg: "No autorizado" });
 
-    const { nombre, apellido, telefono, direccion, descripcion, foto_url } =
-      req.body;
+    const {
+      nombre,
+      apellido,
+      telefono,
+      descripcion,
+      foto_url,
+      especialidades = [],
+    } = req.body;
 
-    // Validar datos obligatorios si quieres
-    if (!nombre) {
-      return res.status(400).json({ msg: "El nombre es requerido" });
+    if (!nombre || !apellido) {
+      return res.status(400).json({ msg: "Nombre y apellido son requeridos" });
     }
 
+    // 1. Actualizar datos básicos del usuario
     await db.query(
       `UPDATE usuarios 
-       SET nombre = ?, apellido = ?, telefono = ?, direccion = ?, descripcion = ?, foto_url = ?
+       SET nombre = ?, apellido = ?, telefono = ?, descripcion = ?, foto_url = ?
        WHERE id = ?`,
-      [nombre, apellido, telefono, direccion, descripcion, foto_url, userId]
+      [
+        nombre,
+        apellido || null,
+        telefono || null,
+        descripcion || null,
+        foto_url || null,
+        userId,
+      ],
+      { transaction: t }
     );
 
+    // 2. Manejar especialidades
+    if (Array.isArray(especialidades) && especialidades.length > 0) {
+      // Borrar anteriores
+      await db.query(
+        `DELETE FROM usuario_especialidad WHERE usuario_id = ?`,
+        [userId],
+        { transaction: t }
+      );
+
+      for (const esp of especialidades) {
+        const {
+          especialidad: nombreEsp,
+          experiencia,
+          descripcion: descEsp,
+        } = esp;
+        if (!nombreEsp || experiencia === undefined) continue;
+
+        // Buscar o crear especialidad
+        const [existing] = await db.query(
+          `SELECT id FROM especialidades WHERE LOWER(nombre) = LOWER(?) LIMIT 1`,
+          [nombreEsp]
+        );
+
+        let especialidadId;
+        if (existing && existing.length > 0) {
+          especialidadId = existing[0].id;
+        } else {
+          const result = await db.query(
+            `INSERT INTO especialidades (nombre) VALUES (?)`,
+            [nombreEsp],
+            { transaction: t }
+          );
+          especialidadId = result.insertId;
+        }
+
+        // Insertar asociación
+        await db.query(
+          `INSERT INTO usuario_especialidad (usuario_id, especialidad_id, experiencia, descripcion) 
+           VALUES (?, ?, ?, ?)`,
+          [userId, especialidadId, experiencia, descEsp || null],
+          { transaction: t }
+        );
+      }
+    }
+
+    await t.commit();
     return res.json({ msg: "Perfil actualizado correctamente" });
   } catch (error) {
+    await t.rollback();
     console.error("Error updateProfile:", error);
-    return res.status(500).json({ msg: "Error interno" });
+    return res.status(500).json({ msg: "Error interno al actualizar perfil" });
   }
 };
