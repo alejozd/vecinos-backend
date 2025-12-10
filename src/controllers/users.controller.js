@@ -376,7 +376,7 @@ exports.updateProfile = async (req, res) => {
             [nombreEsp],
             { transaction: t }
           );
-          especialidadId = insertResult.insertId;
+          especialidadId = insertResult[0].insertId;
         }
 
         // Insertar asociación
