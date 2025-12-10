@@ -158,7 +158,10 @@ exports.getProfile = async (req, res) => {
     if (!userId) return res.status(401).json({ msg: "No autorizado" });
 
     const rows = await db.query(
-      `SELECT id, nombre, email, lat, lng FROM usuarios WHERE id = ?`,
+      `SELECT id, nombre, apellido, email, telefono, 
+         descripcion, foto_url, lat, lng, direccion 
+       FROM usuarios 
+       WHERE id = ?`,
       [userId]
     );
 
