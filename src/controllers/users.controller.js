@@ -321,7 +321,7 @@ exports.updateProfile = async (req, res) => {
       return res.status(400).json({ msg: "Nombre y apellido son requeridos" });
     }
 
-    // 1. Actualizar datos básicos del usuario
+    // 1. Actualizar datos básicos
     await db.query(
       `UPDATE usuarios 
        SET nombre = ?, apellido = ?, telefono = ?, descripcion = ?, foto_url = ?
@@ -354,22 +354,29 @@ exports.updateProfile = async (req, res) => {
         } = esp;
         if (!nombreEsp || experiencia === undefined) continue;
 
-        // Buscar o crear especialidad
-        const [existing] = await db.query(
+        // Buscar especialidad existente (tu db.query devuelve [objeto])
+        const especialidadResult = await db.query(
           `SELECT id FROM especialidades WHERE LOWER(nombre) = LOWER(?) LIMIT 1`,
           [nombreEsp]
         );
 
         let especialidadId;
-        if (existing && existing.length > 0) {
-          especialidadId = existing[0].id;
+
+        // especialidadResult → [ { id: 5 } ] o []
+        if (
+          especialidadResult &&
+          especialidadResult.length > 0 &&
+          especialidadResult[0]
+        ) {
+          especialidadId = especialidadResult[0].id;
         } else {
-          const result = await db.query(
+          // Crear nueva
+          const insertResult = await db.query(
             `INSERT INTO especialidades (nombre) VALUES (?)`,
             [nombreEsp],
             { transaction: t }
           );
-          especialidadId = result.insertId;
+          especialidadId = insertResult.insertId;
         }
 
         // Insertar asociación
@@ -387,6 +394,9 @@ exports.updateProfile = async (req, res) => {
   } catch (error) {
     await t.rollback();
     console.error("Error updateProfile:", error);
-    return res.status(500).json({ msg: "Error interno al actualizar perfil" });
+    return res.status(500).json({
+      msg: "Error interno al actualizar perfil",
+      error: error.message,
+    });
   }
 };
