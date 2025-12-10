@@ -154,22 +154,44 @@ exports.updateLocation = async (req, res) => {
 // ============================================
 exports.getProfile = async (req, res) => {
   try {
-    const userId = req.user && req.user.id;
-    if (!userId) return res.status(401).json({ msg: "No autorizado" });
+    const userId = req.user.id;
 
-    const rows = await db.query(
-      `SELECT id, nombre, apellido, email, telefono, 
+    // 1. Datos básicos del usuario → siempre un solo objeto en userResult[0]
+    const userResult = await db.query(
+      `SELECT 
+         id, nombre, apellido, email, telefono, 
          descripcion, foto_url, lat, lng, direccion 
        FROM usuarios 
        WHERE id = ?`,
       [userId]
     );
 
-    if (!rows || rows.length === 0) {
+    if (!userResult || userResult.length === 0) {
       return res.status(404).json({ msg: "Usuario no encontrado" });
     }
 
-    return res.json(rows[0]);
+    const user = userResult[0]; // ← ¡ES DIRECTO! No userResult[0][0]
+
+    // 2. Especialidades → siempre un array (puede estar vacío)
+    const especialidadesResult = await db.query(
+      `SELECT 
+         e.nombre AS especialidad,
+         ue.experiencia,
+         ue.descripcion
+       FROM usuario_especialidad ue
+       JOIN especialidades e ON ue.especialidad_id = e.id
+       WHERE ue.usuario_id = ?`,
+      [userId]
+    );
+
+    // especialidadesResult → [fila1, fila2] o []
+    const especialidades = especialidadesResult || [];
+
+    // 3. Devolver todo junto
+    return res.json({
+      ...user,
+      especialidades,
+    });
   } catch (error) {
     console.error("Error getProfile:", error);
     return res.status(500).json({ msg: "Error interno" });
