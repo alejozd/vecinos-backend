@@ -9,6 +9,11 @@ const db = require("../config/database");
 // ============================================
 exports.findNearby = async (req, res) => {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ msg: "No autorizado" });
+    }
+
     const { lat, lng, max = 10, especialidad } = req.query;
 
     if (!lat || !lng) {
@@ -53,10 +58,11 @@ exports.findNearby = async (req, res) => {
     // WHERE principal
     sql += `
       WHERE u.activo = 1
-        AND u.id != ?
+        AND u.id != ?        
         AND u.lat IS NOT NULL 
         AND u.lng IS NOT NULL
     `;
+    params.push(userId);
 
     // Añadir filtro de especialidad al WHERE (aquí sí es correcto)
     if (especialidad && especialidad.trim() !== "") {
@@ -71,8 +77,6 @@ exports.findNearby = async (req, res) => {
       LIMIT 100
     `;
     params.push(maxDistanceMeters);
-
-    params.unshift(req.user.id);
 
     // Ejecutar consulta principal
     const rows = await db.query(sql, params);
