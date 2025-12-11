@@ -13,6 +13,7 @@ app.use(morgan("dev"));
 
 app.use("/api/auth", require("./src/routes/auth.routes"));
 app.use("/api/users", require("./src/routes/users.routes"));
+app.use("/api/especialidades", require("./src/routes/especialidades.routes"));
 
 const PORT = process.env.PORT || 3400;
 app.listen(PORT, () => console.log(`API corriendo en puerto ${PORT}`));
