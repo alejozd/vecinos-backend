@@ -53,6 +53,7 @@ exports.findNearby = async (req, res) => {
     // WHERE principal
     sql += `
       WHERE u.activo = 1
+        AND u.id != ?
         AND u.lat IS NOT NULL 
         AND u.lng IS NOT NULL
     `;
@@ -70,6 +71,8 @@ exports.findNearby = async (req, res) => {
       LIMIT 100
     `;
     params.push(maxDistanceMeters);
+
+    params.unshift(req.user.id);
 
     // Ejecutar consulta principal
     const rows = await db.query(sql, params);
